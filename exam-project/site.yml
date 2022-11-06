@@ -1,0 +1,312 @@
+---
+
+- hosts: all
+  become: yes
+  tasks:
+
+#set timezone to Africa/Lagos
+
+  - name: set timezone to Africa/Lagos
+    tags: time
+    timezone: name=Africa/Lagos
+
+
+
+#installing git
+
+  #- name: update repository
+   # apt_repository:
+    #    repo: 'ppa:git-core/ppa'
+     #   state: present
+
+  - name: install git
+    apt:
+     name: git
+     state: present
+     update_cache: yes
+
+
+  - name: install zip
+    apt:
+     name:
+       - zip
+       - unzip
+     state: present
+     update_cache: yes
+
+#install ufw firewall
+
+  - name: install ufw firewall
+    apt:
+      name:
+        - ufw
+      state: latest
+      update_cache: yes
+
+  - name: enable ufw
+    service:
+      name: ufw
+      state: started
+      enabled: yes
+
+
+#install apache2
+
+  - name: install apache2
+    tags: apache,apache2,ubuntu
+    apt:
+      name:
+        - apache2
+      state: latest
+
+#re-start apache2 server
+
+  #- name: restart start apache2
+   # tags: apache,ubuntu,apache2
+    #service:
+     # name: apache2
+      #state: started
+      #enabled: yes
+
+
+
+#install php
+
+  - name: install php
+    apt:
+      name:
+        - php8.1-mysql
+        - php8.1-common
+        - php8.1-xml
+        - php8.1-xmlrpc
+        - php8.1-curl
+        - php8.1-gd
+        - php8.1-imagick
+        - php8.1-cli
+        - php8.1-dev
+        - php8.1-imap
+        - php8.1-mbstring
+        - php8.1-opcache
+        - php8.1-soap
+        - php8.1-zip
+        - php8.1-intl
+        - libapache2-mod-php
+      state: latest
+      update_cache: yes
+
+
+# install updates
+  - name: install updates
+    tags: always
+    apt:
+      update_cache: yes
+
+
+#install mysql
+
+  - name: install mysql
+    tags: mysql
+    apt:
+      name:
+        - mysql-server
+        - mysql-client
+        - python3-mysqldb
+        - libmysqlclient-dev
+      state: present
+      update_cache: yes
+
+  - name: create a new database
+    mysql_db: name=nwokolo state=present login_user=root login_password=""
+
+  - name: creating mysql user (medium_post)
+    mysql_user:
+      name: "emmanuel"
+      password: "donraty6"
+      priv: '*.*:ALL'
+      host: '%'
+      state: present
+
+
+#for the composer
+
+  - name: download php-composer
+    get_url:
+      url: https://getcomposer.org/installer
+      dest: /tmp/installer
+
+  - name: install composer
+    shell: cat /tmp/installer | php -- --install-dir=/usr/local/bin
+    args:
+      creates: /usr/local/bin/composer
+
+  - name: rename composer.phar to composer
+    shell: mv /usr/local/bin/composer.phar /usr/local/bin/composer
+    args:
+      creates: /usr/local/bin/composer
+
+  - name: make composer executable
+    file:
+      path: /usr/local/bin/composer
+      mode: a+x
+      state: file
+
+#     LARAVEL WORK SETUP CODE
+
+
+
+
+# clone git repo
+
+  - name: check if git repo exist
+    stat:
+      path: /var/www/html/nwokolo
+    register: repo
+
+  - name: clone repository
+    git:
+      repo: https://github.com/f1amy/laravel-realworld-example-app.git
+      dest: /var/www/html/nwokolo
+    register: env
+    when: not repo.stat.exists
+
+
+# to copy env file into application
+
+  - name: copy .env file into application
+    copy:
+      src: .env
+      dest: /var/www/html/nwokolo
+    #when: env.changed
+
+
+  - name: change permission
+    file:
+      dest: /var/www/html/nwokolo
+      owner: james
+      group: www-data
+      mode: 0775
+      recurse: yes
+    #when: env.changed
+
+
+  - name: change permission for storage
+    tags: storage
+    file:
+      dest: /var/www/html/nwokolo/storage
+      owner: james
+      group: www-data
+      mode: 0775
+      recurse: yes
+    #when: env.changed
+
+  #- name: install composer updates
+  #  command:
+   #   chdir: /var/www/html/nwokolo
+    #  argv:
+     #   - composer
+      #  - update
+    #become: false
+    #when: env.changed
+
+
+
+# install dependencies using composer
+
+  - name: install dependencies using composer
+    command:
+      chdir: /var/www/html/nwokolo
+      argv:
+        - composer
+        - install
+    become: false
+       # - --no-interaction
+    when: env.changed
+
+
+# generate key for application
+
+  - name: generate key for application
+    command:
+      chdir: /var/www/html/nwokolo
+      argv:
+        - php
+        - artisan
+        - key:generate
+    when: env.changed
+
+# migrate database
+
+  - name: migrate database
+    command:
+      chdir: /var/www/html/nwokolo
+      argv:
+        - php
+        - artisan
+        - migrate
+        - --seed
+    when: env.changed
+
+
+  - name: clear cache
+    command:
+      chdir: /var/www/html/nwokolo
+      argv:
+        - php
+        - artisan
+        - cache:clear
+    #when: env.changed
+
+# create config file for apache
+
+  - name: copy apache config file
+    copy:
+      src: nwokolo.conf
+      dest: /etc/apache2/sites-available/
+    when: env.changed
+
+
+# enable re-write
+
+  - name: enable re-write
+    command:
+      argv:
+       - a2enmod
+       - rewrite
+    when: env.changed
+
+# enable config file
+
+  - name: enable config file
+    command:
+      argv:
+       - a2ensite
+       - nwokolo.conf
+    when: env.changed
+
+
+# restart apache2
+
+  - name: restart apache2
+    service:
+      name: apache2
+      state: restarted
+
+
+
+
+
+# to install postgresql
+
+
+  - name: run script setup
+    tags:
+      - postgre
+      - run_postgres
+    script: postgresql.sh
+
+  - name: check that postgres is installed
+    tags:
+      - postgres
+    command: sudo -u postgres psql -c "SELECT version();"
+
+

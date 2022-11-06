@@ -1,0 +1,30 @@
+---
+
+- hosts: all
+  become: true
+  tasks:
+
+
+  - name: create james user
+    tags: always
+    user:
+      name: james
+      groups: root
+
+  - name: add ssh key for james
+    tags: always
+    authorized_key:
+      user: james
+      key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDQ/iBj3j4XG2N4Xss4KT75JlRyG1AflN8pErI+av+F8Z2/kikZIz7Z/cEXAnm9+Axeuc5KljwHiPO8djk40XF8nVai2iig/OZQMRpx/DyQNGx+uWqYIP1DrZ24sXhG20pmbDhdlLdjJljBHpHhV1ksBmtrHOqltes/a8g3p21kv7Lei6B5HK/>
+"
+
+  - name: add sudoers file for james
+    tags: always
+    copy:
+      src: sudoer_james
+      dest: /etc/sudoers.d/james
+      owner: root
+      mode: '0440'
+      group: root
+
+
