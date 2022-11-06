@@ -1,1 +1,0 @@
-![git log command image](/image%20space/config-l.jpg)

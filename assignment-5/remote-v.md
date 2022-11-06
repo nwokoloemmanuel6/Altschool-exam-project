@@ -1,1 +1,0 @@
-![the git remote -v command](/image%20space/remote-v.jpg)
